@@ -23,9 +23,6 @@
       backdrop-filter: blur(6px);
       box-shadow: 0 8px 20px rgba(0,0,0,0.3);
       font-weight: 600;
-      display: flex;
-      align-items: center;
-      z-index: 10;
     }
 
     #game {
@@ -34,7 +31,6 @@
       height: 100vh;
       padding: 80px 24px 24px;
       gap: 24px;
-      box-sizing: border-box;
     }
 
     .panel {
@@ -42,7 +38,6 @@
       border-radius: 20px;
       padding: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-      overflow-y: auto;
     }
 
     h2 {
@@ -51,6 +46,7 @@
       opacity: 0.9;
     }
 
+    /* Farm */
     #farm {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -75,25 +71,9 @@
       width: 72px;
       height: 72px;
       background: url("pumpkin.png") center / contain no-repeat;
-      transition: transform 0.3s ease;
     }
 
-    .particle {
-      position: absolute;
-      width: 6px;
-      height: 6px;
-      background: radial-gradient(circle, #c77dff, #6a1fa3);
-      border-radius: 50%;
-      pointer-events: none;
-      animation: pop 0.6s ease-out forwards;
-    }
-
-    @keyframes pop {
-      from { transform: translate(0,0) scale(1); opacity: 1; }
-      to { transform: translate(var(--x), var(--y)) scale(0); opacity: 0; }
-    }
-
-    .growing .pumpkin {
+    .growing {
       opacity: 0.4;
     }
 
@@ -102,11 +82,9 @@
       bottom: 6px;
       font-size: 0.75rem;
       opacity: 0.8;
-      background: rgba(0,0,0,0.3);
-      padding: 2px 6px;
-      border-radius: 4px;
     }
 
+    /* Press */
     #pressArea {
       display: flex;
       flex-direction: column;
@@ -122,19 +100,27 @@
       border-radius: 16px;
       position: relative;
       overflow: hidden;
-      border: 4px solid #444;
+    }
+
+    #press::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 20px;
+      background: #555;
     }
 
     #pressButton {
       background: #7b2cff;
       border: none;
       border-radius: 14px;
-      padding: 12px 24px;
+      padding: 12px 20px;
       font-size: 1rem;
       color: white;
       cursor: pointer;
       box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-      font-weight: bold;
     }
 
     #pressButton:disabled {
@@ -143,13 +129,12 @@
     }
 
     #pipe {
-      width: 20px;
+      width: 12px;
       height: 120px;
       background: #444;
-      border-radius: 10px;
+      border-radius: 6px;
       position: relative;
       overflow: hidden;
-      border: 2px solid #222;
     }
 
     #liquid {
@@ -157,48 +142,31 @@
       bottom: 0;
       width: 100%;
       height: 0;
-      background: url("elixir.png") bottom / cover no-repeat;
+      background: url("elixir.png") center / cover no-repeat;
       transition: height 0.4s ease;
     }
 
-    .buy-plot {
-      background: linear-gradient(180deg, #9b5cff, #6a1fa3);
-      border: none;
-      border-radius: 12px;
-      padding: 10px 18px;
-      color: white;
-      font-weight: 600;
-      cursor: pointer;
-      margin-bottom: 12px;
-      width: 100%;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-
-    .buy-plot:disabled {
-      background: #555;
-      opacity: 0.6;
-      cursor: not-allowed;
+    #inventory {
+      font-size: 0.95rem;
+      opacity: 0.9;
     }
   </style>
 </head>
 <body>
   <div id="elixirCounter">
-    <img src="elixir.png" style="width:16px;height:24px;margin-right:8px" />
-    Elixir: <span id="elixir">0</span>
-  </div>
+      <img src="elixir.png" style="width:16px;height:24px;vertical-align:middle;margin-right:6px" />
+      Elixir: <span id="elixir">0</span>
+    </div>
 
   <div id="game">
     <div class="panel">
       <h2>Purple Pumpkin Farm</h2>
-      <button id="buyPlot" class="buy-plot">Buy Plot (10 Elixir)</button>
       <div id="farm"></div>
     </div>
 
     <div class="panel" id="pressArea">
       <h2>Hydraulic Press</h2>
-      <div id="press">
-        <div style="width:100%; height:20px; background:#555;"></div>
-      </div>
+      <div id="press"></div>
       <button id="pressButton" disabled>Activate Press</button>
       <div id="pipe"><div id="liquid"></div></div>
       <div id="inventory">Pumpkins Loaded: <span id="loaded">0</span></div>
@@ -223,154 +191,77 @@
     }
 
     /* ---------- Game State ---------- */
-    const GROW_TIME = 20; 
+    const GROW_TIME = 20; // seconds
+
     let elixir = Number(getCookie('elixir')) || 0;
     let loadedPumpkins = Number(getCookie('loadedPumpkins')) || 0;
-    let maxPlots = Number(getCookie('maxPlots')) || 1; 
-    let rowAuto = JSON.parse(getCookie('rowAuto') || '[]');
 
-    let plots = Array.from({ length: maxPlots }, (_, i) => ({
+    const plots = Array.from({ length: 6 }, (_, i) => ({
       id: i,
       grown: false,
       timer: Number(getCookie('plot_' + i)) || GROW_TIME
     }));
 
-    /* ---------- UI Elements ---------- */
+    /* ---------- UI ---------- */
     const farmEl = document.getElementById('farm');
     const elixirEl = document.getElementById('elixir');
     const loadedEl = document.getElementById('loaded');
     const pressBtn = document.getElementById('pressButton');
     const liquidEl = document.getElementById('liquid');
-    const buyPlotBtn = document.getElementById('buyPlot');
 
     function renderFarm() {
       farmEl.innerHTML = '';
-      const rows = Math.ceil(plots.length / 3);
+      plots.forEach(plot => {
+        const div = document.createElement('div');
+        div.className = 'plot';
 
-      for (let r = 0; r < rows; r++) {
-        const rowWrap = document.createElement('div');
-        rowWrap.style.display = 'contents';
-
-        for (let c = 0; c < 3; c++) {
-          const idx = r * 3 + c;
-          if (idx >= plots.length) break;
-
-          const plot = plots[idx];
-          const div = document.createElement('div');
-          div.className = 'plot';
-
+        if (plot.grown) {
           const pumpkin = document.createElement('div');
           pumpkin.className = 'pumpkin';
-
-          if (plot.grown) {
-            pumpkin.style.transform = 'scale(1)';
-            div.appendChild(pumpkin);
-          } else {
-            div.classList.add('growing');
-            const progress = 1 - (plot.timer / GROW_TIME);
-            pumpkin.style.transform = `scale(${0.3 + (progress * 0.7)})`;
-            div.appendChild(pumpkin);
-
-            const t = document.createElement('div');
-            t.className = 'timer';
-            t.textContent = Math.max(0, plot.timer) + 's';
-            div.appendChild(t);
-          }
-
-          div.onclick = () => {
-            if (plot.grown) {
-              // particles
-              for (let i = 0; i < 8; i++) {
-                const p = document.createElement('div');
-                p.className = 'particle';
-                p.style.left = '50%';
-                p.style.top = '50%';
-                p.style.setProperty('--x', `${Math.random() * 60 - 30}px`);
-                p.style.setProperty('--y', `${Math.random() * 60 - 30}px`);
-                div.appendChild(p);
-                setTimeout(() => p.remove(), 600);
-              }
-
-              plot.grown = false;
-              plot.timer = GROW_TIME;
-              loadedPumpkins++;
-              save();
-              updateUI();
-            }
-          };
-          rowWrap.appendChild(div);
-        }
-        farmEl.appendChild(rowWrap);
-
-        // Row Upgrade Button
-        const upgrade = document.createElement('button');
-        upgrade.className = 'buy-plot';
-        const upgradeCost = 10 + (r * 15);
-        if (rowAuto[r]) {
-          upgrade.textContent = `Row ${r+1} Automated`;
-          upgrade.disabled = true;
+          div.appendChild(pumpkin);
         } else {
-          upgrade.textContent = `Automate Row ${r+1} (${upgradeCost} Elixir)`;
-          upgrade.disabled = elixir < upgradeCost;
-          upgrade.onclick = () => {
-            if (elixir >= upgradeCost) {
-              elixir -= upgradeCost;
-              rowAuto[r] = true;
-              save();
-              updateUI();
-            }
-          };
+          div.classList.add('growing');
+          const t = document.createElement('div');
+          t.className = 'timer';
+          t.textContent = plot.timer + 's';
+          div.appendChild(t);
         }
-        farmEl.appendChild(upgrade);
-      }
-    }
 
-    function updateBuyButton() {
-      const nextPlotCost = maxPlots * 10;
-      buyPlotBtn.textContent = `Buy New Plot (${nextPlotCost} Elixir)`;
-      buyPlotBtn.disabled = elixir < nextPlotCost;
-      buyPlotBtn.onclick = () => {
-        if (elixir >= nextPlotCost) {
-          elixir -= nextPlotCost;
-          maxPlots++;
-          plots.push({ id: maxPlots - 1, grown: false, timer: GROW_TIME });
-          save();
-          updateUI();
-        }
-      };
+        div.onclick = () => {
+          if (plot.grown) {
+            plot.grown = false;
+            plot.timer = GROW_TIME;
+            loadedPumpkins++;
+            save();
+            updateUI();
+          }
+        };
+
+        farmEl.appendChild(div);
+      });
     }
 
     function updateUI() {
-      elixirEl.textContent = Math.floor(elixir);
+      elixirEl.textContent = elixir;
       loadedEl.textContent = loadedPumpkins;
       pressBtn.disabled = loadedPumpkins === 0;
-      updateBuyButton();
       renderFarm();
     }
 
     function save() {
       setCookie('elixir', elixir);
       setCookie('loadedPumpkins', loadedPumpkins);
-      setCookie('maxPlots', maxPlots);
-      setCookie('rowAuto', JSON.stringify(rowAuto));
       plots.forEach(p => setCookie('plot_' + p.id, p.timer));
     }
 
     /* ---------- Growth Loop ---------- */
     setInterval(() => {
-      plots.forEach((p, i) => {
+      plots.forEach(p => {
         if (!p.grown) {
           p.timer--;
           if (p.timer <= 0) {
             p.grown = true;
             p.timer = 0;
-          }
-        } else {
-          const row = Math.floor(i / 3);
-          if (rowAuto[row]) {
-            p.grown = false;
-            p.timer = GROW_TIME;
-            loadedPumpkins++;
           }
         }
       });
@@ -378,22 +269,21 @@
       updateUI();
     }, 1000);
 
-    /* ---------- Press Logic ---------- */
+    /* ---------- Press ---------- */
     pressBtn.onclick = () => {
       if (loadedPumpkins <= 0) return;
 
-      const payout = loadedPumpkins * 5;
-      elixir += payout;
+      const used = loadedPumpkins;
       loadedPumpkins = 0;
+      elixir += used * 5;
 
       liquidEl.style.height = '100%';
-      setTimeout(() => (liquidEl.style.height = '0%'), 800);
+      setTimeout(() => (liquidEl.style.height = '0%'), 600);
 
       save();
       updateUI();
     };
 
-    // Initial Start
     updateUI();
   </script>
 </body>
