@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Purple Pumpkin Elixir</title>
+  <title>Idle elixir</title>
   <style>
     body {
       margin: 0;
@@ -23,6 +23,14 @@
       backdrop-filter: blur(6px);
       box-shadow: 0 8px 20px rgba(0,0,0,0.3);
       font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #elixirIcon {
+      width: 20px;
+      height: auto;
     }
 
     #game {
@@ -38,12 +46,31 @@
       border-radius: 20px;
       padding: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      overflow-y: auto;
     }
 
     h2 {
       margin-top: 0;
       font-size: 1.2rem;
       opacity: 0.9;
+    }
+
+    #buyPlotBtn {
+      background: #9b5cff;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 15px;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    #buyPlotBtn:disabled {
+      background: #444;
+      cursor: not-allowed;
+      opacity: 0.5;
     }
 
     /* Farm */
@@ -68,15 +95,20 @@
     .plot:hover { transform: scale(1.03); }
 
     .pumpkin {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 30% 30%, #d38bff, #6a1fa3);
-      box-shadow: inset -6px -8px 0 rgba(0,0,0,0.25);
+      width: 70px;
+      height: 70px;
+      background-image: url('pumpkin.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
     }
 
     .growing {
       opacity: 0.4;
+    }
+
+    .growing .pumpkin {
+      transform: scale(0.5);
     }
 
     .timer {
@@ -84,6 +116,9 @@
       bottom: 6px;
       font-size: 0.75rem;
       opacity: 0.8;
+      background: rgba(0,0,0,0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
     /* Press */
@@ -102,6 +137,7 @@
       border-radius: 16px;
       position: relative;
       overflow: hidden;
+      border: 4px solid #444;
     }
 
     #press::before {
@@ -123,6 +159,7 @@
       color: white;
       cursor: pointer;
       box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+      font-weight: bold;
     }
 
     #pressButton:disabled {
@@ -131,7 +168,7 @@
     }
 
     #pipe {
-      width: 12px;
+      width: 20px;
       height: 120px;
       background: #444;
       border-radius: 6px;
@@ -144,7 +181,8 @@
       bottom: 0;
       width: 100%;
       height: 0;
-      background: linear-gradient(180deg, #b45cff, #6a1fa3);
+      background-image: url('elixir.png');
+      background-size: cover;
       transition: height 0.4s ease;
     }
 
@@ -155,11 +193,15 @@
   </style>
 </head>
 <body>
-  <div id="elixirCounter">Elixir: <span id="elixir">0</span></div>
+  <div id="elixirCounter">
+    <img src="elixir.png" id="elixirIcon" alt="Elixir">
+    <span>Elixir: <span id="elixir">0</span></span>
+  </div>
 
   <div id="game">
     <div class="panel">
       <h2>Purple Pumpkin Farm</h2>
+      <button id="buyPlotBtn">Buy Plot (30 Elixir)</button>
       <div id="farm"></div>
     </div>
 
@@ -190,23 +232,27 @@
     }
 
     /* ---------- Game State ---------- */
-    const GROW_TIME = 20; // seconds
+    const GROW_TIME = 20; 
+    const PLOT_COST = 30;
+    const MAX_PLOTS = 15;
 
     let elixir = Number(getCookie('elixir')) || 0;
     let loadedPumpkins = Number(getCookie('loadedPumpkins')) || 0;
+    let totalPlotCount = Number(getCookie('totalPlots')) || 6;
 
-    const plots = Array.from({ length: 6 }, (_, i) => ({
+    let plots = Array.from({ length: totalPlotCount }, (_, i) => ({
       id: i,
       grown: false,
       timer: Number(getCookie('plot_' + i)) || GROW_TIME
     }));
 
-    /* ---------- UI ---------- */
+    /* ---------- UI Elements ---------- */
     const farmEl = document.getElementById('farm');
     const elixirEl = document.getElementById('elixir');
     const loadedEl = document.getElementById('loaded');
     const pressBtn = document.getElementById('pressButton');
     const liquidEl = document.getElementById('liquid');
+    const buyPlotBtn = document.getElementById('buyPlotBtn');
 
     function renderFarm() {
       farmEl.innerHTML = '';
@@ -214,11 +260,11 @@
         const div = document.createElement('div');
         div.className = 'plot';
 
-        if (plot.grown) {
-          const pumpkin = document.createElement('div');
-          pumpkin.className = 'pumpkin';
-          div.appendChild(pumpkin);
-        } else {
+        const pumpkin = document.createElement('div');
+        pumpkin.className = 'pumpkin';
+        div.appendChild(pumpkin);
+
+        if (!plot.grown) {
           div.classList.add('growing');
           const t = document.createElement('div');
           t.className = 'timer';
@@ -244,14 +290,38 @@
       elixirEl.textContent = elixir;
       loadedEl.textContent = loadedPumpkins;
       pressBtn.disabled = loadedPumpkins === 0;
+      
+      // Update Buy Plot Button
+      if (plots.length >= MAX_PLOTS) {
+        buyPlotBtn.style.display = 'none';
+      } else {
+        buyPlotBtn.disabled = elixir < PLOT_COST;
+      }
+      
       renderFarm();
     }
 
     function save() {
       setCookie('elixir', elixir);
       setCookie('loadedPumpkins', loadedPumpkins);
+      setCookie('totalPlots', plots.length);
       plots.forEach(p => setCookie('plot_' + p.id, p.timer));
     }
+
+    /* ---------- Buy Plot Logic ---------- */
+    buyPlotBtn.onclick = () => {
+      if (elixir >= PLOT_COST && plots.length < MAX_PLOTS) {
+        elixir -= PLOT_COST;
+        const newId = plots.length;
+        plots.push({
+          id: newId,
+          grown: false,
+          timer: GROW_TIME
+        });
+        save();
+        updateUI();
+      }
+    };
 
     /* ---------- Growth Loop ---------- */
     setInterval(() => {
