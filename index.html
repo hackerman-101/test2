@@ -13,7 +13,7 @@
       overflow: hidden;
     }
 
-    /* Elixir Meter with Image */
+    /* Elixir Meter */
     #elixirCounter {
       position: absolute;
       top: 16px;
@@ -33,12 +33,11 @@
     #elixirMeterImg {
       width: 20px;
       height: auto;
-      display: block;
     }
 
     #game {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1.2fr 0.8fr;
       height: 100vh;
       padding: 80px 24px 24px;
       gap: 24px;
@@ -54,6 +53,13 @@
 
     h2 { margin-top: 0; font-size: 1.2rem; opacity: 0.9; }
 
+    .header-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
     #buyPlotBtn {
       background: #9b5cff;
       border: none;
@@ -61,28 +67,27 @@
       padding: 10px 16px;
       border-radius: 8px;
       cursor: pointer;
-      margin-bottom: 20px;
       font-weight: bold;
-      width: 100%;
     }
 
     #buyPlotBtn:disabled {
       background: #444;
-      cursor: not-allowed;
       opacity: 0.5;
+      cursor: not-allowed;
     }
 
-    /* Farm Grid */
+    /* Farm Grid: 3 plots + 1 automation button */
     #farm {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
+      grid-template-columns: repeat(3, 1fr) 140px;
+      gap: 12px;
+      align-items: center;
     }
 
     .plot {
       background: #3a1a55;
       border-radius: 14px;
-      height: 120px;
+      height: 110px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -94,10 +99,9 @@
 
     .plot:hover { transform: scale(1.03); }
 
-    /* Pumpkin Image on Plots */
     .pumpkin {
-      width: 75px;
-      height: 75px;
+      width: 70px;
+      height: 70px;
       background-image: url('pumpkin.png');
       background-size: contain;
       background-repeat: no-repeat;
@@ -112,14 +116,48 @@
 
     .timer {
       position: absolute;
-      bottom: 8px;
-      font-size: 0.75rem;
+      bottom: 6px;
+      font-size: 0.7rem;
       background: rgba(0,0,0,0.5);
-      padding: 2px 8px;
-      border-radius: 10px;
+      padding: 2px 6px;
+      border-radius: 8px;
     }
 
-    /* Hydraulic Press Section */
+    /* Auto Row Button Style */
+    .auto-btn {
+      height: 60px;
+      border-radius: 10px;
+      border: none;
+      background: #4a1f7a;
+      color: #d38bff;
+      font-size: 0.75rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 5px;
+    }
+
+    .auto-btn:hover:not(:disabled) {
+      background: #6a1fa3;
+      color: white;
+    }
+
+    .auto-btn.active {
+      background: #2ecc71;
+      color: white;
+      cursor: default;
+    }
+
+    .auto-btn:disabled:not(.active) {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Press Section */
     #pressArea {
       display: flex;
       flex-direction: column;
@@ -133,7 +171,6 @@
       height: 140px;
       background: #2a2a2a;
       border-radius: 16px;
-      position: relative;
       border: 4px solid #444;
     }
 
@@ -172,14 +209,16 @@
 <body>
 
   <div id="elixirCounter">
-    <img src="elixir.png" id="elixirMeterImg" alt="Elixir Icon">
+    <img src="elixir.png" id="elixirMeterImg" alt="Elixir">
     <span>Elixir: <span id="elixir">0</span></span>
   </div>
 
   <div id="game">
     <div class="panel">
-      <h2>Purple Pumpkin Farm</h2>
-      <button id="buyPlotBtn">Buy Plot (30 Elixir)</button>
+      <div class="header-actions">
+        <h2>Purple Pumpkin Farm</h2>
+        <button id="buyPlotBtn">Buy Plot (30 Elixir)</button>
+      </div>
       <div id="farm"></div>
     </div>
 
@@ -193,7 +232,7 @@
   </div>
 
   <script>
-    /* ---------- Cookie Helpers ---------- */
+    /* ---------- Helpers ---------- */
     function setCookie(name, value) {
       const d = new Date();
       d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000));
@@ -210,11 +249,13 @@
     /* ---------- Game State ---------- */
     const GROW_TIME = 20; 
     const PLOT_COST = 30;
+    const AUTO_COST = 100;
     const MAX_PLOTS = 15;
 
     let elixir = Number(getCookie('elixir')) || 0;
     let loadedPumpkins = Number(getCookie('loadedPumpkins')) || 0;
     let totalPlotCount = Number(getCookie('totalPlots')) || 6;
+    let rowAuto = JSON.parse(getCookie('rowAuto') || '[]');
 
     let plots = Array.from({ length: totalPlotCount }, (_, i) => ({
       id: i,
@@ -232,37 +273,76 @@
 
     function renderFarm() {
       farmEl.innerHTML = '';
-      plots.forEach(plot => {
-        const div = document.createElement('div');
-        div.className = 'plot';
-        if (!plot.grown) div.classList.add('growing');
+      const rowCount = Math.ceil(plots.length / 3);
 
-        const pumpkin = document.createElement('div');
-        pumpkin.className = 'pumpkin';
-        div.appendChild(pumpkin);
+      for (let r = 0; r < rowCount; r++) {
+        // Add 3 plots for this row
+        for (let c = 0; c < 3; c++) {
+          const idx = r * 3 + c;
+          if (idx >= plots.length) {
+            // Empty placeholder for incomplete rows
+            const spacer = document.createElement('div');
+            farmEl.appendChild(spacer);
+            continue;
+          }
 
-        if (!plot.grown) {
-          const t = document.createElement('div');
-          t.className = 'timer';
-          t.textContent = plot.timer + 's';
-          div.appendChild(t);
+          const plot = plots[idx];
+          const div = document.createElement('div');
+          div.className = 'plot';
+          if (!plot.grown) div.classList.add('growing');
+
+          const pumpkin = document.createElement('div');
+          pumpkin.className = 'pumpkin';
+          div.appendChild(pumpkin);
+
+          if (!plot.grown) {
+            const t = document.createElement('div');
+            t.className = 'timer';
+            t.textContent = plot.timer + 's';
+            div.appendChild(t);
+          }
+
+          div.onclick = () => {
+            if (plot.grown) {
+              harvestPlot(idx);
+            }
+          };
+          farmEl.appendChild(div);
         }
 
-        div.onclick = () => {
-          if (plot.grown) {
-            plot.grown = false;
-            plot.timer = GROW_TIME;
-            loadedPumpkins++;
-            save();
-            updateUI();
-          }
-        };
-        farmEl.appendChild(div);
-      });
+        // Add Auto Farm Button for this row
+        const autoBtn = document.createElement('button');
+        autoBtn.className = 'auto-btn';
+        if (rowAuto[r]) {
+          autoBtn.textContent = "AUTO ACTIVE";
+          autoBtn.classList.add('active');
+          autoBtn.disabled = true;
+        } else {
+          autoBtn.textContent = "AUTO FARM ROW (100)";
+          autoBtn.disabled = elixir < AUTO_COST;
+          autoBtn.onclick = () => {
+            if (elixir >= AUTO_COST) {
+              elixir -= AUTO_COST;
+              rowAuto[r] = true;
+              save();
+              updateUI();
+            }
+          };
+        }
+        farmEl.appendChild(autoBtn);
+      }
+    }
+
+    function harvestPlot(idx) {
+      plots[idx].grown = false;
+      plots[idx].timer = GROW_TIME;
+      loadedPumpkins++;
+      save();
+      updateUI();
     }
 
     function updateUI() {
-      elixirEl.textContent = elixir;
+      elixirEl.textContent = Math.floor(elixir);
       loadedEl.textContent = loadedPumpkins;
       pressBtn.disabled = loadedPumpkins === 0;
       
@@ -278,18 +358,25 @@
       setCookie('elixir', elixir);
       setCookie('loadedPumpkins', loadedPumpkins);
       setCookie('totalPlots', plots.length);
+      setCookie('rowAuto', JSON.stringify(rowAuto));
       plots.forEach(p => setCookie('plot_' + p.id, p.timer));
     }
 
     /* ---------- Growth Loop ---------- */
     setInterval(() => {
-      plots.forEach(p => {
+      plots.forEach((p, i) => {
         if (!p.grown) {
           p.timer--;
           if (p.timer <= 0) {
             p.grown = true;
             p.timer = 0;
           }
+        }
+        
+        // Auto-Harvest check
+        const rowIdx = Math.floor(i / 3);
+        if (p.grown && rowAuto[rowIdx]) {
+          harvestPlot(i);
         }
       });
       save();
